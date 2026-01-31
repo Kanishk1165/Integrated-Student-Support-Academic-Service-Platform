@@ -14,7 +14,11 @@ const handleValidationErrors = (req, res, next) => {
     
     if (!errors.isEmpty()) {
         const errorMessages = errors.array().map(error => error.msg);
-        return next(new ErrorResponse(errorMessages.join(', '), 400));
+        return res.status(400).json({
+            success: false,
+            message: 'Validation failed',
+            errors: errorMessages
+        });
     }
     
     next();
