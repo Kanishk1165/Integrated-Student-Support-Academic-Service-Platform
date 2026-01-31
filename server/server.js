@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const { errorHandler } = require('./middleware/errorHandler');
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/tickets', require('./routes/ticketRoutes'));
 
 // Root route
 app.get('/', (req, res) => {
@@ -31,6 +33,9 @@ app.get('/', (req, res) => {
         message: 'UniSupport Portal API Running'
     });
 });
+
+// Error handling middleware (must be last)
+app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 5000;
