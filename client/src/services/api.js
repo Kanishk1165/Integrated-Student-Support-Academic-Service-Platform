@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || "/api";
+const defaultProdApiBaseURL = "https://integrated-student-support-academic.vercel.app/api";
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? defaultProdApiBaseURL : "/api");
 
 const api = axios.create({
   baseURL: apiBaseURL,
