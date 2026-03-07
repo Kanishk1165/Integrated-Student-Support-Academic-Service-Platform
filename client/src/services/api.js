@@ -32,7 +32,7 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (data) => api.post("/auth/register", data),
   login:    (data) => api.post("/auth/login", data),
-  syncSupabaseSession: (accessToken) => api.post("/auth/supabase-sync", null, {
+  syncSupabaseSession: (accessToken) => api.post("/auth/supabase-sync", {}, {
     headers: { Authorization: `Bearer ${accessToken}` },
   }),
   getMe:    ()     => api.get("/auth/me"),
