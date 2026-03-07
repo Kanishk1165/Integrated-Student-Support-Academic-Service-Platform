@@ -119,7 +119,7 @@ exports.login = async (req, res, next) => {
 
     const signin = await signInWithPassword({ email, password });
     if (!signin.ok) {
-      return res.status(401).json({ success: false, message: normalizeSupabaseError(signin.data) });
+      return res.status(signin.status || 401).json({ success: false, message: normalizeSupabaseError(signin.data) });
     }
 
     const supabaseUser = signin.data?.user;
@@ -149,7 +149,7 @@ exports.syncSupabaseSession = async (req, res, next) => {
 
     const lookup = await getUserWithAccessToken({ accessToken });
     if (!lookup.ok) {
-      return res.status(401).json({ success: false, message: normalizeSupabaseError(lookup.data) });
+      return res.status(lookup.status || 401).json({ success: false, message: normalizeSupabaseError(lookup.data) });
     }
 
     const user = await upsertLocalUserFromSupabase(lookup.data);
