@@ -14,11 +14,15 @@ const departmentRoutes = require("./routes/departmentRoutes");
 
 const app = express();
 
+const corsOrigin = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(",").map((origin) => origin.trim())
+  : true;
+
 connectDB()
   .then(() => bootstrapAdmin())
   .catch((err) => console.error("Startup DB/bootstrap error:", err.message));
 
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
