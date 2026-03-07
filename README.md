@@ -84,6 +84,12 @@ cd server
 MONGO_URI="your_mongodb_connection_string" ADMIN_EMAIL="admin@university.edu" ADMIN_PASSWORD="admin123" npm run create-admin
 ```
 
+Or auto-create/update admin on backend startup (recommended for Vercel):
+- `BOOTSTRAP_ADMIN_EMAIL` (example: `newadmin@university.edu`)
+- `BOOTSTRAP_ADMIN_PASSWORD` (example: `NewAdmin@123`)
+- `BOOTSTRAP_ADMIN_NAME` (optional)
+- `BOOTSTRAP_ADMIN_FORCE_RESET=true` (optional, resets password on deploy)
+
 ---
 
 ## 🛠 Tech Stack
@@ -115,6 +121,9 @@ Deploy as **two Vercel projects**: one for backend (`server`) and one for fronte
 	 - `JWT_SECRET`
 	 - `JWT_EXPIRES_IN` (optional, e.g. `7d`)
 	 - `CLIENT_URL` (your frontend Vercel URL, e.g. `https://your-app.vercel.app`)
+	 - `BOOTSTRAP_ADMIN_EMAIL` (e.g. `newadmin@university.edu`)
+	 - `BOOTSTRAP_ADMIN_PASSWORD` (e.g. `NewAdmin@123`)
+	 - `BOOTSTRAP_ADMIN_FORCE_RESET=true` (for first deploy with new password)
 	 - `NODE_ENV=production`
 	 - `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` (if email features are used)
 5. Deploy and copy backend URL (example: `https://issasp-api.vercel.app`).
