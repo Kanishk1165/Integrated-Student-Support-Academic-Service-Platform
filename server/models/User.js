@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   department: { type: String },
   year:       { type: String },
   phone:      { type: String },
+  supabaseId: { type: String, sparse: true, index: true },
   avatar:     { type: String, default: "" },
   isActive:   { type: Boolean, default: true },
 }, { timestamps: true });

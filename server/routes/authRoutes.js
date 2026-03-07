@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { body } = require("express-validator");
-const { register, login, getMe, updatePassword } = require("../controllers/authController");
+const { register, login, getMe, updatePassword, syncSupabaseSession } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
 
 router.post("/register", [
@@ -10,6 +10,7 @@ router.post("/register", [
 ], register);
 
 router.post("/login", login);
+router.post("/supabase-sync", syncSupabaseSession);
 router.get("/me", protect, getMe);
 router.patch("/update-password", protect, updatePassword);
 

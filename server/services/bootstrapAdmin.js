@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const { signInWithPassword, signUpWithPassword } = require("./supabaseAuthService");
 
 let hasBootstrappedAdmin = false;
 
@@ -13,6 +14,25 @@ const bootstrapAdmin = async () => {
   const forceReset = isTruthy(process.env.BOOTSTRAP_ADMIN_FORCE_RESET);
 
   if (!email || !password) return;
+
+  const supabaseSignup = await signUpWithPassword({
+    email,
+    password,
+    metadata: { name, role: "admin" },
+  });
+
+  if (!supabaseSignup.ok) {
+    const message = supabaseSignup.data?.error_description || supabaseSignup.data?.msg || "Supabase signup failed.";
+    const alreadyRegistered = /already|exists|registered/i.test(message);
+    if (alreadyRegistered) {
+      const supabaseSignIn = await signInWithPassword({ email, password });
+      if (!supabaseSignIn.ok) {
+        console.warn(`Bootstrap admin Supabase account exists but password mismatch for ${email}.`);
+      }
+    } else {
+      console.warn(`Bootstrap admin Supabase error: ${message}`);
+    }
+  }
 
   const existingAdmin = await User.findOne({ email }).select("+password");
 

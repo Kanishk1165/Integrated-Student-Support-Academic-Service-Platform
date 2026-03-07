@@ -11,7 +11,7 @@ const api = axios.create({
 // Attach JWT token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token && !config.headers?.Authorization) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -31,6 +31,9 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (data) => api.post("/auth/register", data),
   login:    (data) => api.post("/auth/login", data),
+  syncSupabaseSession: (accessToken) => api.post("/auth/supabase-sync", null, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }),
   getMe:    ()     => api.get("/auth/me"),
   updatePassword: (data) => api.patch("/auth/update-password", data),
 };
