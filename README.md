@@ -76,7 +76,13 @@ After running the server, seed an admin:
 ```bash
 cd server && npm run seed
 ```
-Login: `admin@university.edu` / `Admin@123`
+Login: `admin@university.edu` / `admin123`
+
+If you are using a deployed MongoDB (Atlas/Vercel) and login fails because admin does not exist, create/update admin safely (without wiping data):
+```bash
+cd server
+MONGO_URI="your_mongodb_connection_string" ADMIN_EMAIL="admin@university.edu" ADMIN_PASSWORD="admin123" npm run create-admin
+```
 
 ---
 

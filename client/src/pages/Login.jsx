@@ -49,6 +49,7 @@ export default function Login() {
 
           {/* Demo credentials helper */}
           <div style={{ background: "#eef3ff", borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: "#4f8ef7" }}>
+            <strong>Note:</strong> These accounts must exist in your deployed database. <br />
             <strong>Demo:</strong> kanishk@university.edu / student123 <br />
             <strong>Admin:</strong> admin@university.edu / admin123
           </div>
