@@ -4,6 +4,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
 const connectDB = require("./config/db");
+const bootstrapAdmin = require("./services/bootstrapAdmin");
 
 const authRoutes = require("./routes/authRoutes");
 const queryRoutes = require("./routes/queryRoutes");
@@ -13,7 +14,9 @@ const departmentRoutes = require("./routes/departmentRoutes");
 
 const app = express();
 
-connectDB();
+connectDB()
+  .then(() => bootstrapAdmin())
+  .catch((err) => console.error("Startup DB/bootstrap error:", err.message));
 
 app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true }));
 app.use(express.json());
