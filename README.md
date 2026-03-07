@@ -99,7 +99,7 @@ Or auto-create/update admin on backend startup (recommended for Vercel):
 | Frontend    | React 18, Vite, React Router v6, Axios |
 | Backend     | Node.js, Express 4 |
 | Database    | MongoDB + Mongoose |
-| Auth        | JWT (httpOnly cookies) + bcryptjs |
+| Auth        | Supabase Auth + App JWT |
 | Access      | Role-Based Access Control (RBAC) |
 | Email       | Nodemailer |
 | Cache       | Redis (optional) |
@@ -120,6 +120,8 @@ Deploy as **two Vercel projects**: one for backend (`server`) and one for fronte
 	 - `MONGO_URI`
 	 - `JWT_SECRET`
 	 - `JWT_EXPIRES_IN` (optional, e.g. `7d`)
+	 - `SUPABASE_URL` (e.g. `https://your-project-ref.supabase.co`)
+	 - `SUPABASE_ANON_KEY` (your Supabase anon public key)
 	 - `CLIENT_URL` (your frontend Vercel URL, e.g. `https://your-app.vercel.app`)
 	 - `BOOTSTRAP_ADMIN_EMAIL` (e.g. `newadmin@university.edu`)
 	 - `BOOTSTRAP_ADMIN_PASSWORD` (e.g. `NewAdmin@123`)
@@ -134,6 +136,8 @@ Deploy as **two Vercel projects**: one for backend (`server`) and one for fronte
 2. Set **Root Directory** to `client`.
 3. Add Environment Variable:
 	 - `VITE_API_BASE_URL=https://issasp-api.vercel.app/api`
+	 - `VITE_SUPABASE_URL=https://your-project-ref.supabase.co`
+	 - `VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`
 4. Deploy.
 
 ### 3) Final CORS Check
