@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const fallbackAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvY2xiamR6ZG96Z2x0and4b3pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDYwNTgsImV4cCI6MjA4ODQ4MjA1OH0.o4TtAtdz0nFpXU2ESvuePGNk3H8GQ-cePz8BAGIDvjk";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || fallbackAnonKey;
 const parseSupabaseUrlFromAnonKey = (anonKey) => {
   try {
     const payload = anonKey?.split(".")?.[1];
