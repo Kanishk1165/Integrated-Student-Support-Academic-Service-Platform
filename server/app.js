@@ -27,7 +27,30 @@ app.use(express.json());
 app.use(cookieParser());
 if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
 
-app.get("/api/health", (req, res) => res.json({ status: "OK", timestamp: new Date() }));
+app.get("/api/health", (req, res) =>
+  res.json({
+    status: "OK",
+    dbConnected: connectDB.isDatabaseConnected(),
+    timestamp: new Date(),
+  })
+);
+
+app.use(async (req, res, next) => {
+  if (req.path === "/api/health") return next();
+  if (connectDB.isDatabaseConnected()) return next();
+
+  try {
+    await connectDB();
+    return next();
+  } catch (err) {
+    console.error("DB unavailable for request:", err.message);
+    return res.status(503).json({
+      success: false,
+      message: "Database unavailable. Configure a reachable MONGO_URI and redeploy backend.",
+      ...(process.env.NODE_ENV === "development" && { detail: err.message }),
+    });
+  }
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/queries", queryRoutes);
@@ -39,8 +62,13 @@ app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  const message = err.message || "Internal Server Error";
+  const mongoUnavailable = /buffering timed out|server selection timed out|MONGO_URI/i.test(message);
+
   res.status(err.statusCode || 500).json({
-    message: err.message || "Internal Server Error",
+    message: mongoUnavailable
+      ? "Database unavailable. Configure a reachable MONGO_URI and redeploy backend."
+      : message,
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });

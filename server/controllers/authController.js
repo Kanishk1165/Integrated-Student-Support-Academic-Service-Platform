@@ -35,7 +35,12 @@ const upsertLocalUserFromSupabase = async (supabaseUser) => {
   if (!email) return null;
 
   const roleFromMetadata = supabaseUser?.user_metadata?.role;
-  const role = ["student", "admin", "faculty"].includes(roleFromMetadata) ? roleFromMetadata : "student";
+  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase().trim();
+  const role = ["student", "admin", "faculty"].includes(roleFromMetadata)
+    ? roleFromMetadata
+    : bootstrapAdminEmail && email.toLowerCase() === bootstrapAdminEmail
+      ? "admin"
+      : "student";
   const supabaseId = supabaseUser?.id || null;
 
   let user = await User.findOne({ $or: [{ email }, { supabaseId }] }).select("+password");
