@@ -20,7 +20,7 @@ const parseSupabaseUrlFromAnonKey = (anonKey) => {
 const getSupabaseConfig = () => {
   const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || fallbackAnonKey;
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || parseSupabaseUrlFromAnonKey(anonKey);
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || anonKey;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
     return null;
