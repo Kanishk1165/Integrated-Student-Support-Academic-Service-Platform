@@ -3,8 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
-const connectDB = require("./config/db");
 const bootstrapAdmin = require("./services/bootstrapAdmin");
+const { getDbClient } = require("./services/supabaseDbService");
 
 const authRoutes = require("./routes/authRoutes");
 const queryRoutes = require("./routes/queryRoutes");
@@ -18,38 +18,31 @@ const corsOrigin = process.env.CLIENT_URL
   ? process.env.CLIENT_URL.split(",").map((origin) => origin.trim())
   : true;
 
-connectDB()
-  .then(() => bootstrapAdmin())
-  .catch((err) => console.error("Startup DB/bootstrap error:", err.message));
+bootstrapAdmin().catch((err) => console.error("Startup bootstrap error:", err.message));
 
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
 
-app.get("/api/health", (req, res) =>
-  res.json({
-    status: "OK",
-    dbConnected: connectDB.isDatabaseConnected(),
-    timestamp: new Date(),
-  })
-);
-
-app.use(async (req, res, next) => {
-  if (req.path === "/api/health") return next();
-  if (connectDB.isDatabaseConnected()) return next();
-
-  try {
-    await connectDB();
-    return next();
-  } catch (err) {
-    console.error("DB unavailable for request:", err.message);
-    return res.status(503).json({
-      success: false,
-      message: "Database unavailable. Configure a reachable MONGO_URI and redeploy backend.",
-      ...(process.env.NODE_ENV === "development" && { detail: err.message }),
+app.get("/api/health", async (req, res) => {
+  const supabase = getDbClient();
+  if (!supabase) {
+    return res.status(500).json({
+      status: "ERROR",
+      supabaseConnected: false,
+      message: "Supabase DB client is not configured. Set SUPABASE_SERVICE_ROLE_KEY.",
+      timestamp: new Date(),
     });
   }
+
+  const { error } = await supabase.from("profiles").select("id").limit(1);
+  return res.status(error ? 500 : 200).json({
+    status: error ? "ERROR" : "OK",
+    supabaseConnected: !error,
+    ...(error && { message: error.message }),
+    timestamp: new Date(),
+  });
 });
 
 app.use("/api/auth", authRoutes);
@@ -62,13 +55,8 @@ app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  const message = err.message || "Internal Server Error";
-  const mongoUnavailable = /buffering timed out|server selection timed out|MONGO_URI/i.test(message);
-
   res.status(err.statusCode || 500).json({
-    message: mongoUnavailable
-      ? "Database unavailable. Configure a reachable MONGO_URI and redeploy backend."
-      : message,
+    message: err.message || "Internal Server Error",
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });

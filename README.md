@@ -7,9 +7,8 @@ A centralized digital platform where students raise academic/support requests, t
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- MongoDB (local or Atlas)
-- Redis (optional, for notifications)
+- Node.js 20+
+- Supabase project (Auth + Postgres)
 - Docker & Docker Compose (optional)
 
 ---
@@ -37,6 +36,8 @@ npm install
 cp ../.env.example .env     # Fill in values
 npm run dev
 ```
+
+Before first run, execute `server/supabase/schema.sql` in your Supabase SQL Editor.
 
 **Frontend**
 ```bash
@@ -78,10 +79,10 @@ cd server && npm run seed
 ```
 Login: `admin@university.edu` / `admin123`
 
-If you are using a deployed MongoDB (Atlas/Vercel) and login fails because admin does not exist, create/update admin safely (without wiping data):
+If admin does not exist, create/update admin safely:
 ```bash
 cd server
-MONGO_URI="your_mongodb_connection_string" ADMIN_EMAIL="admin@university.edu" ADMIN_PASSWORD="admin123" npm run create-admin
+ADMIN_EMAIL="admin@university.edu" ADMIN_PASSWORD="admin123" npm run create-admin
 ```
 
 Or auto-create/update admin on backend startup (recommended for Vercel):
@@ -98,11 +99,10 @@ Or auto-create/update admin on backend startup (recommended for Vercel):
 |-------------|------|
 | Frontend    | React 18, Vite, React Router v6, Axios |
 | Backend     | Node.js, Express 4 |
-| Database    | MongoDB + Mongoose |
-| Auth        | Supabase Auth + App JWT |
+| Database    | Supabase Postgres |
+| Auth        | Supabase Auth |
 | Access      | Role-Based Access Control (RBAC) |
 | Email       | Nodemailer |
-| Cache       | Redis (optional) |
 | Deployment  | Docker + Docker Compose |
 
 ---
@@ -117,11 +117,9 @@ Deploy as **two Vercel projects**: one for backend (`server`) and one for fronte
 2. Set **Root Directory** to `server`.
 3. Keep defaults (Vercel uses `server/vercel.json` to route `/api/*` to Express).
 4. Add Environment Variables:
-	 - `MONGO_URI`
-	 - `JWT_SECRET`
-	 - `JWT_EXPIRES_IN` (optional, e.g. `7d`)
 	 - `SUPABASE_URL` (e.g. `https://your-project-ref.supabase.co`)
 	 - `SUPABASE_ANON_KEY` (your Supabase anon public key)
+	 - `SUPABASE_SERVICE_ROLE_KEY` (your Supabase service role key)
 	 - `CLIENT_URL` (your frontend Vercel URL, e.g. `https://your-app.vercel.app`)
 	 - `BOOTSTRAP_ADMIN_EMAIL` (e.g. `newadmin@university.edu`)
 	 - `BOOTSTRAP_ADMIN_PASSWORD` (e.g. `NewAdmin@123`)

@@ -1,35 +1,46 @@
-const Query = require("../models/Query");
 const { sendQueryNotification } = require("../services/emailService");
+const { getDbClient, enrichQueries } = require("../services/supabaseDbService");
+
+const requireDb = (res) => {
+  const db = getDbClient();
+  if (!db) {
+    res.status(500).json({ success: false, message: "Supabase DB client is not configured." });
+    return null;
+  }
+  return db;
+};
+
+const queryId = () => `QRY-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
 // GET /api/queries
 exports.getQueries = async (req, res, next) => {
   try {
+    const db = requireDb(res);
+    if (!db) return;
+
     const { status, category, priority, page = 1, limit = 10 } = req.query;
-    const filter = {};
+    const pageNum = Math.max(Number(page) || 1, 1);
+    const limitNum = Math.max(Number(limit) || 10, 1);
+    const from = (pageNum - 1) * limitNum;
+    const to = from + limitNum - 1;
 
-    // Students only see their own queries
-    if (req.user.role === "student") filter.raisedBy = req.user._id;
+    let q = db.from("queries").select("*", { count: "exact" }).order("created_at", { ascending: false });
 
-    if (status)   filter.status   = status;
-    if (category) filter.category = category;
-    if (priority) filter.priority = priority;
+    if (req.user.role === "student") q = q.eq("raised_by", req.user.id);
+    if (status) q = q.eq("status", status);
+    if (category) q = q.eq("category", category);
+    if (priority) q = q.eq("priority", priority);
 
-    const skip = (page - 1) * limit;
-    const [queries, total] = await Promise.all([
-      Query.find(filter)
-        .populate("raisedBy", "name email rollNumber")
-        .populate("assignedTo", "name email")
-        .populate("department", "name")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(Number(limit)),
-      Query.countDocuments(filter),
-    ]);
+    const { data, error, count } = await q.range(from, to);
+    if (error) throw error;
+
+    const queries = await enrichQueries(db, data || [], { includeResponses: true });
+    const total = count || 0;
 
     res.json({
       success: true,
       data: queries,
-      pagination: { total, page: Number(page), pages: Math.ceil(total / limit) },
+      pagination: { total, page: pageNum, pages: Math.ceil(total / limitNum) || 1 },
     });
   } catch (err) {
     next(err);
@@ -39,18 +50,18 @@ exports.getQueries = async (req, res, next) => {
 // GET /api/queries/:id
 exports.getQueryById = async (req, res, next) => {
   try {
-    const query = await Query.findById(req.params.id)
-      .populate("raisedBy", "name email rollNumber department year")
-      .populate("assignedTo", "name email")
-      .populate("department", "name")
-      .populate("responses.respondedBy", "name role");
+    const db = requireDb(res);
+    if (!db) return;
 
-    if (!query) return res.status(404).json({ success: false, message: "Query not found." });
+    const { data, error } = await db.from("queries").select("*").eq("id", req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, message: "Query not found." });
 
-    // Students can only see their own
-    if (req.user.role === "student" && query.raisedBy._id.toString() !== req.user._id.toString())
+    if (req.user.role === "student" && data.raised_by !== req.user.id) {
       return res.status(403).json({ success: false, message: "Access denied." });
+    }
 
+    const [query] = await enrichQueries(db, [data], { includeResponses: true });
     res.json({ success: true, data: query });
   } catch (err) {
     next(err);
@@ -60,21 +71,34 @@ exports.getQueryById = async (req, res, next) => {
 // POST /api/queries
 exports.createQuery = async (req, res, next) => {
   try {
+    const db = requireDb(res);
+    if (!db) return;
+
     const { title, description, category, priority, department } = req.body;
-    if (!title || !description || !category)
+    if (!title || !description || !category) {
       return res.status(400).json({ success: false, message: "Title, description, and category are required." });
+    }
 
-    const query = await Query.create({
-      title, description, category, priority, department,
-      raisedBy: req.user._id,
-    });
+    const payload = {
+      query_id: queryId(),
+      title,
+      description,
+      category,
+      priority: priority || "medium",
+      department_id: department || null,
+      raised_by: req.user.id,
+    };
 
-    await query.populate("raisedBy", "name email");
+    const { data, error } = await db.from("queries").insert(payload).select("*").single();
+    if (error) throw error;
 
-    // Send email notification
+    const [query] = await enrichQueries(db, [data], { includeResponses: true });
+
     try {
       await sendQueryNotification(req.user.email, query, "created");
-    } catch (e) { console.warn("Email failed:", e.message); }
+    } catch (e) {
+      console.warn("Email failed:", e.message);
+    }
 
     res.status(201).json({ success: true, data: query });
   } catch (err) {
@@ -85,18 +109,42 @@ exports.createQuery = async (req, res, next) => {
 // PATCH /api/queries/:id/status
 exports.updateStatus = async (req, res, next) => {
   try {
+    const db = requireDb(res);
+    if (!db) return;
+
     const { status, assignedTo } = req.body;
-    const query = await Query.findById(req.params.id).populate("raisedBy", "email name");
-    if (!query) return res.status(404).json({ success: false, message: "Query not found." });
 
-    if (status)     query.status     = status;
-    if (assignedTo) query.assignedTo = assignedTo;
-    await query.save();
+    const { data: existing, error: fetchError } = await db
+      .from("queries")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
 
-    // Notify student on status change
+    if (fetchError) throw fetchError;
+    if (!existing) return res.status(404).json({ success: false, message: "Query not found." });
+
+    const patch = {};
+    if (status) patch.status = status;
+    if (assignedTo !== undefined) patch.assigned_to = assignedTo || null;
+    if (status === "resolved") patch.resolved_at = new Date().toISOString();
+    if (status === "closed") patch.closed_at = new Date().toISOString();
+
+    const { data, error } = await db
+      .from("queries")
+      .update(patch)
+      .eq("id", req.params.id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    const [query] = await enrichQueries(db, [data], { includeResponses: true });
+
     try {
-      await sendQueryNotification(query.raisedBy.email, query, "status_update");
-    } catch (e) { console.warn("Email failed:", e.message); }
+      await sendQueryNotification(query.raisedBy?.email, query, "status_update");
+    } catch (e) {
+      console.warn("Email failed:", e.message);
+    }
 
     res.json({ success: true, data: query });
   } catch (err) {
@@ -107,24 +155,53 @@ exports.updateStatus = async (req, res, next) => {
 // POST /api/queries/:id/respond
 exports.addResponse = async (req, res, next) => {
   try {
+    const db = requireDb(res);
+    if (!db) return;
+
     const { message, isInternal } = req.body;
     if (!message) return res.status(400).json({ success: false, message: "Message is required." });
 
-    const query = await Query.findById(req.params.id).populate("raisedBy", "email name");
-    if (!query) return res.status(404).json({ success: false, message: "Query not found." });
+    const { data: existing, error: fetchError } = await db
+      .from("queries")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
 
-    query.responses.push({ message, respondedBy: req.user._id, isInternal: isInternal || false });
+    if (fetchError) throw fetchError;
+    if (!existing) return res.status(404).json({ success: false, message: "Query not found." });
 
-    // Auto set to in-progress when admin responds
-    if (req.user.role !== "student" && query.status === "open") query.status = "in-progress";
-    await query.save();
+    const { error: responseError } = await db.from("query_responses").insert({
+      query_id: req.params.id,
+      message,
+      responded_by: req.user.id,
+      is_internal: Boolean(isInternal),
+    });
+    if (responseError) throw responseError;
 
-    await query.populate("responses.respondedBy", "name role");
+    if (req.user.role !== "student" && existing.status === "open") {
+      const { error: statusError } = await db
+        .from("queries")
+        .update({ status: "in-progress" })
+        .eq("id", req.params.id);
+      if (statusError) throw statusError;
+    }
 
-    if (!isInternal) {
+    const { data: updated, error: updatedError } = await db
+      .from("queries")
+      .select("*")
+      .eq("id", req.params.id)
+      .single();
+
+    if (updatedError) throw updatedError;
+
+    const [query] = await enrichQueries(db, [updated], { includeResponses: true });
+
+    if (!Boolean(isInternal)) {
       try {
-        await sendQueryNotification(query.raisedBy.email, query, "new_response");
-      } catch (e) { console.warn("Email failed:", e.message); }
+        await sendQueryNotification(query.raisedBy?.email, query, "new_response");
+      } catch (e) {
+        console.warn("Email failed:", e.message);
+      }
     }
 
     res.json({ success: true, data: query });
@@ -133,10 +210,15 @@ exports.addResponse = async (req, res, next) => {
   }
 };
 
-// DELETE /api/queries/:id  (admin only)
+// DELETE /api/queries/:id
 exports.deleteQuery = async (req, res, next) => {
   try {
-    await Query.findByIdAndDelete(req.params.id);
+    const db = requireDb(res);
+    if (!db) return;
+
+    const { error } = await db.from("queries").delete().eq("id", req.params.id);
+    if (error) throw error;
+
     res.json({ success: true, message: "Query deleted." });
   } catch (err) {
     next(err);
