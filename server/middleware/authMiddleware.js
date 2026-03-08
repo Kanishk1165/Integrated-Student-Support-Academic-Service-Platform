@@ -1,20 +1,39 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { getUserWithAccessToken } = require("../services/supabaseAuthService");
+const { getDbClient, normalizeProfile } = require("../services/supabaseDbService");
 
 exports.protect = async (req, res, next) => {
-  let token;
-  if (req.headers.authorization?.startsWith("Bearer")) {
-    token = req.headers.authorization.split(" ")[1];
-  }
+  const token = req.headers.authorization?.startsWith("Bearer")
+    ? req.headers.authorization.split(" ")[1]
+    : null;
+
   if (!token) {
     return res.status(401).json({ success: false, message: "Not authenticated. Please login." });
   }
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select("-password");
-    if (!req.user || !req.user.isActive) {
+    const lookup = await getUserWithAccessToken({ accessToken: token });
+    if (!lookup.ok || !lookup.data?.id) {
+      return res.status(401).json({ success: false, message: "Invalid or expired token." });
+    }
+
+    const db = getDbClient();
+    if (!db) {
+      return res.status(500).json({ success: false, message: "Supabase DB client is not configured." });
+    }
+
+    const { data, error } = await db
+      .from("profiles")
+      .select("*")
+      .eq("supabase_id", lookup.data.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data || !data.is_active) {
       return res.status(401).json({ success: false, message: "User not found or deactivated." });
     }
+
+    req.user = normalizeProfile(data);
+    req.accessToken = token;
     next();
   } catch {
     return res.status(401).json({ success: false, message: "Invalid or expired token." });

@@ -1,24 +1,11 @@
-const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
 const { validationResult } = require("express-validator");
-const User = require("../models/User");
 const {
   signUpWithPassword,
   signInWithPassword,
   updatePasswordWithAccessToken,
   getUserWithAccessToken,
 } = require("../services/supabaseAuthService");
-
-const signToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
-  });
-
-const sendToken = (user, statusCode, res) => {
-  const token = signToken(user._id);
-  user.password = undefined;
-  res.status(statusCode).json({ success: true, token, user });
-};
+const { getDbClient, normalizeProfile } = require("../services/supabaseDbService");
 
 const normalizeSupabaseError = (data) =>
   data?.error_description || data?.msg || data?.message || "Authentication failed.";
@@ -28,48 +15,55 @@ const getDefaultNameFromEmail = (email) => {
   return local.charAt(0).toUpperCase() + local.slice(1);
 };
 
-const generateFallbackPassword = () => `sb_${crypto.randomBytes(12).toString("hex")}`;
-
-const upsertLocalUserFromSupabase = async (supabaseUser) => {
-  const email = supabaseUser?.email;
-  if (!email) return null;
-
-  const roleFromMetadata = supabaseUser?.user_metadata?.role;
+const pickRole = (candidateRole, email) => {
+  if (["student", "admin", "faculty"].includes(candidateRole)) return candidateRole;
   const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase().trim();
-  const role = ["student", "admin", "faculty"].includes(roleFromMetadata)
-    ? roleFromMetadata
-    : bootstrapAdminEmail && email.toLowerCase() === bootstrapAdminEmail
-      ? "admin"
-      : "student";
-  const supabaseId = supabaseUser?.id || null;
+  if (bootstrapAdminEmail && email?.toLowerCase() === bootstrapAdminEmail) return "admin";
+  return "student";
+};
 
-  let user = await User.findOne({ $or: [{ email }, { supabaseId }] }).select("+password");
-  if (!user) {
-    user = await User.create({
-      name: supabaseUser?.user_metadata?.name || getDefaultNameFromEmail(email),
-      email,
-      password: generateFallbackPassword(),
-      role,
-      rollNumber: supabaseUser?.user_metadata?.rollNumber,
-      department: supabaseUser?.user_metadata?.department,
-      year: supabaseUser?.user_metadata?.year,
-      phone: supabaseUser?.user_metadata?.phone,
-      supabaseId,
-    });
-    return user;
+const ensureProfileFromSupabase = async (supabaseUser, fallback = {}) => {
+  const db = getDbClient();
+  if (!db) {
+    throw new Error("Supabase DB client is not configured. Set SUPABASE_SERVICE_ROLE_KEY.");
   }
 
-  let changed = false;
-  if (supabaseId && user.supabaseId !== supabaseId) {
-    user.supabaseId = supabaseId;
-    changed = true;
+  const email = supabaseUser?.email || fallback.email;
+  const supabaseId = supabaseUser?.id || fallback.supabaseId;
+  if (!email || !supabaseId) {
+    throw new Error("Supabase user is missing id/email.");
   }
-  if (!user.name && supabaseUser?.user_metadata?.name) {
-    user.name = supabaseUser.user_metadata.name;
-    changed = true;
-  }
-  if (changed) await user.save();
-  return user;
+
+  const metadata = supabaseUser?.user_metadata || {};
+
+  const profilePayload = {
+    supabase_id: supabaseId,
+    email,
+    name: fallback.name || metadata.name || getDefaultNameFromEmail(email),
+    role: pickRole(fallback.role || metadata.role, email),
+    roll_number: fallback.rollNumber || metadata.rollNumber || null,
+    department: fallback.department || metadata.department || null,
+    year: fallback.year || metadata.year || null,
+    phone: fallback.phone || metadata.phone || null,
+    is_active: true,
+  };
+
+  const { data, error } = await db
+    .from("profiles")
+    .upsert(profilePayload, { onConflict: "supabase_id" })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return normalizeProfile(data);
+};
+
+const sendSession = (res, profile, accessToken, statusCode = 200) => {
+  res.status(statusCode).json({
+    success: true,
+    token: accessToken,
+    user: profile,
+  });
 };
 
 // POST /api/auth/register
@@ -79,9 +73,6 @@ exports.register = async (req, res, next) => {
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
     const { name, email, password, role, rollNumber, department, year, phone } = req.body;
-
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ success: false, message: "Email already registered." });
 
     const signup = await signUpWithPassword({
       email,
@@ -96,20 +87,27 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    const supabaseId = signup.data?.user?.id || null;
+    const login = await signInWithPassword({ email, password });
+    if (!login.ok) {
+      return res.status(login.status || 401).json({
+        success: false,
+        message: normalizeSupabaseError(login.data),
+      });
+    }
 
-    const user = await User.create({
+    const supabaseUser = login.data?.user || signup.data?.user;
+    const profile = await ensureProfileFromSupabase(supabaseUser, {
       name,
-      email,
-      password,
       role,
       rollNumber,
       department,
       year,
       phone,
-      supabaseId,
+      email,
+      supabaseId: supabaseUser?.id,
     });
-    sendToken(user, 201, res);
+
+    return sendSession(res, profile, login.data?.access_token, 201);
   } catch (err) {
     next(err);
   }
@@ -119,8 +117,9 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password)
+    if (!email || !password) {
       return res.status(400).json({ success: false, message: "Email and password required." });
+    }
 
     const signin = await signInWithPassword({ email, password });
     if (!signin.ok) {
@@ -128,13 +127,13 @@ exports.login = async (req, res, next) => {
     }
 
     const supabaseUser = signin.data?.user;
-    const user = await upsertLocalUserFromSupabase(supabaseUser);
-    if (!user) return res.status(400).json({ success: false, message: "Supabase user email missing." });
+    const profile = await ensureProfileFromSupabase(supabaseUser, { email, supabaseId: supabaseUser?.id });
 
-    if (!user.isActive)
+    if (!profile?.isActive) {
       return res.status(403).json({ success: false, message: "Account deactivated. Contact admin." });
+    }
 
-    sendToken(user, 200, res);
+    return sendSession(res, profile, signin.data?.access_token, 200);
   } catch (err) {
     next(err);
   }
@@ -143,10 +142,9 @@ exports.login = async (req, res, next) => {
 // POST /api/auth/supabase-sync
 exports.syncSupabaseSession = async (req, res, next) => {
   try {
-    let accessToken;
-    if (req.headers.authorization?.startsWith("Bearer")) {
-      accessToken = req.headers.authorization.split(" ")[1];
-    }
+    const accessToken = req.headers.authorization?.startsWith("Bearer")
+      ? req.headers.authorization.split(" ")[1]
+      : null;
 
     if (!accessToken) {
       return res.status(401).json({ success: false, message: "Supabase access token required." });
@@ -157,14 +155,13 @@ exports.syncSupabaseSession = async (req, res, next) => {
       return res.status(lookup.status || 401).json({ success: false, message: normalizeSupabaseError(lookup.data) });
     }
 
-    const user = await upsertLocalUserFromSupabase(lookup.data);
-    if (!user) return res.status(400).json({ success: false, message: "Supabase user email missing." });
+    const profile = await ensureProfileFromSupabase(lookup.data);
 
-    if (!user.isActive) {
+    if (!profile?.isActive) {
       return res.status(403).json({ success: false, message: "Account deactivated. Contact admin." });
     }
 
-    sendToken(user, 200, res);
+    return sendSession(res, profile, accessToken, 200);
   } catch (err) {
     next(err);
   }
@@ -198,12 +195,7 @@ exports.updatePassword = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(req.user._id).select("+password");
-    if (!user) return res.status(404).json({ success: false, message: "User not found." });
-
-    user.password = newPassword;
-    await user.save();
-    sendToken(user, 200, res);
+    return sendSession(res, req.user, accessToken, 200);
   } catch (err) {
     next(err);
   }

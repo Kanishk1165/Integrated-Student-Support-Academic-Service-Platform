@@ -1,5 +1,5 @@
-const User = require("../models/User");
 const { signInWithPassword, signUpWithPassword } = require("./supabaseAuthService");
+const { getDbClient } = require("./supabaseDbService");
 
 let hasBootstrappedAdmin = false;
 
@@ -15,64 +15,51 @@ const bootstrapAdmin = async () => {
 
   if (!email || !password) return;
 
-  const supabaseSignup = await signUpWithPassword({
-    email,
-    password,
-    metadata: { name, role: "admin" },
-  });
+  const db = getDbClient();
+  if (!db) {
+    console.warn("Bootstrap admin skipped: SUPABASE_SERVICE_ROLE_KEY not configured.");
+    return;
+  }
 
-  if (!supabaseSignup.ok) {
-    const message = supabaseSignup.data?.error_description || supabaseSignup.data?.msg || "Supabase signup failed.";
-    const alreadyRegistered = /already|exists|registered/i.test(message);
-    if (alreadyRegistered) {
-      const supabaseSignIn = await signInWithPassword({ email, password });
-      if (!supabaseSignIn.ok) {
-        console.warn(`Bootstrap admin Supabase account exists but password mismatch for ${email}.`);
+  let supabaseUserId;
+
+  if (forceReset) {
+    const signup = await signUpWithPassword({ email, password, metadata: { name, role: "admin" } });
+    if (!signup.ok) {
+      const message = signup.data?.error_description || signup.data?.msg || "Supabase signup failed.";
+      const alreadyRegistered = /already|exists|registered/i.test(message);
+      if (!alreadyRegistered) {
+        console.warn(`Bootstrap admin Supabase error: ${message}`);
       }
-    } else {
-      console.warn(`Bootstrap admin Supabase error: ${message}`);
     }
   }
 
-  const existingAdmin = await User.findOne({ email }).select("+password");
+  const signIn = await signInWithPassword({ email, password });
+  if (!signIn.ok) {
+    console.warn(`Bootstrap admin could not sign in with provided password for ${email}.`);
+    return;
+  }
 
-  if (!existingAdmin) {
-    await User.create({
-      name,
+  supabaseUserId = signIn.data?.user?.id;
+
+  const { error } = await db.from("profiles").upsert(
+    {
+      supabase_id: supabaseUserId,
       email,
-      password,
+      name,
       role: "admin",
-      department: "IT",
-      isActive: true,
-    });
-    console.log(`Bootstrap admin created: ${email}`);
-  } else {
-    let updated = false;
+      is_active: true,
+    },
+    { onConflict: "supabase_id" }
+  );
 
-    if (existingAdmin.role !== "admin") {
-      existingAdmin.role = "admin";
-      updated = true;
-    }
-
-    if (!existingAdmin.isActive) {
-      existingAdmin.isActive = true;
-      updated = true;
-    }
-
-    if (forceReset) {
-      existingAdmin.password = password;
-      updated = true;
-    }
-
-    if (updated) {
-      await existingAdmin.save();
-      console.log(`Bootstrap admin updated: ${email}`);
-    } else {
-      console.log(`Bootstrap admin exists: ${email}`);
-    }
+  if (error) {
+    console.warn(`Bootstrap admin profile upsert failed: ${error.message}`);
+    return;
   }
 
   hasBootstrappedAdmin = true;
+  console.log(`Bootstrap admin ready: ${email}`);
 };
 
 module.exports = bootstrapAdmin;
