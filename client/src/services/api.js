@@ -1,6 +1,15 @@
 import axios from "axios";
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || "/api";
+let apiBaseURL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+// Safety: refuse localhost in production builds
+if (import.meta.env.PROD && apiBaseURL.includes("localhost")) {
+  console.error(
+    "[api] VITE_API_BASE_URL points to localhost in a production build. " +
+    "Set it to your deployed backend URL in Vercel environment variables."
+  );
+  apiBaseURL = "/api";
+}
 
 const api = axios.create({
   baseURL: apiBaseURL,
