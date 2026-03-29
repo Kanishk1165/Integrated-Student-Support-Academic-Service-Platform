@@ -1,0 +1,14 @@
+{
+  "name": "issasp",
+  "version": "1.0.0",
+  "description": "Integrated Student Support & Academic Service Platform",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -n server,client -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "setup": "npm install && npm run install:all"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
