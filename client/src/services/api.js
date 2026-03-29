@@ -1,12 +1,6 @@
 import axios from "axios";
 
-const defaultProdApiBaseURL = "https://integrated-student-support-academic.vercel.app/api";
-
-// Support both env names to stay backward-compatible with older setups.
-const apiBaseURL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? defaultProdApiBaseURL : "/api");
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 const api = axios.create({
   baseURL: apiBaseURL,
