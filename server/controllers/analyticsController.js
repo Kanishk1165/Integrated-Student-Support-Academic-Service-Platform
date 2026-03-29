@@ -9,9 +9,10 @@ const requireDb = (res) => {
   return db;
 };
 
-const countByStatus = async (db, status) => {
+const countByStatus = async (db, status, userId) => {
   let q = db.from("queries").select("id", { count: "exact", head: true });
   if (status) q = q.eq("status", status);
+  if (userId) q = q.eq("assigned_to", userId);
   const { count, error } = await q;
   if (error) throw error;
   return count || 0;
@@ -23,13 +24,17 @@ exports.getOverview = async (req, res, next) => {
     const db = requireDb(res);
     if (!db) return;
 
+    const isFaculty = req.user.role === "faculty";
+    const userId = isFaculty ? req.user.id : null;
+
     const [total, open, inProgress, resolved, closed, totalStudents] = await Promise.all([
-      countByStatus(db),
-      countByStatus(db, "open"),
-      countByStatus(db, "in-progress"),
-      countByStatus(db, "resolved"),
-      countByStatus(db, "closed"),
+      countByStatus(db, null, userId),
+      countByStatus(db, "open", userId),
+      countByStatus(db, "in-progress", userId),
+      countByStatus(db, "resolved", userId),
+      countByStatus(db, "closed", userId),
       (async () => {
+        if (isFaculty) return 0; // Faculty don't need total students count in their overview typically
         const { count, error } = await db
           .from("profiles")
           .select("id", { count: "exact", head: true })

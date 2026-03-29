@@ -15,7 +15,8 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await login(form.email, form.password);
-      navigate(user.role === "student" ? "/student/dashboard" : "/admin/dashboard");
+      const roleRoutes = { student: "/student/dashboard", faculty: "/faculty/dashboard", admin: "/admin/dashboard" };
+      navigate(roleRoutes[user.role] || "/admin/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Login failed. Check your credentials.");
     } finally {
@@ -34,7 +35,7 @@ export default function Login() {
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#4f8ef7", letterSpacing: 3, textTransform: "uppercase" }}>ISSASP</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginTop: 8 }}>Welcome back</div>
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginTop: 4 }}>Sign in to your student portal</div>
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginTop: 4 }}>Sign in to your account</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{
@@ -48,9 +49,10 @@ export default function Login() {
           )}
 
           {/* Demo credentials helper */}
-          <div style={{ background: "#eef3ff", borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: "#4f8ef7" }}>
-            <strong>Note:</strong> These accounts must exist in your deployed database. <br />
-            <strong>Demo:</strong> kanishk@university.edu / student123 <br />
+          <div style={{ background: "#eef3ff", borderRadius: 10, padding: "14px 16px", marginBottom: 20, fontSize: 12, color: "#4f8ef7", lineHeight: 1.7 }}>
+            <strong style={{ fontSize: 13 }}>Demo Credentials</strong><br />
+            <strong>Student:</strong> kanishk@university.edu / student123<br />
+            <strong>Faculty:</strong> faculty@university.edu / faculty123<br />
             <strong>Admin:</strong> admin@university.edu / admin123
           </div>
 

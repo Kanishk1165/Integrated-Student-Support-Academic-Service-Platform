@@ -3,54 +3,47 @@ import Layout from "../../components/layout/Layout";
 import { analyticsAPI, queryAPI } from "../../services/api";
 import QueryDetailModal from "../../components/dashboard/QueryDetailModal";
 
-export default function AdminDashboard() {
+export default function FacultyDashboard() {
   const [overview, setOverview] = useState({});
-  const [recentQueries, setRecentQueries] = useState([]);
+  const [assignedQueries, setAssignedQueries] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
     Promise.all([
-      analyticsAPI.getOverview(),
-      queryAPI.getAll({ limit: 8, status: "open" }),
+      analyticsAPI.getOverview(), // We will update backend so this works per-faculty
+      queryAPI.getAll({ limit: 10, status: "open", assigned: "me" }), // Only assigned open queries
     ]).then(([oRes, qRes]) => {
       setOverview(oRes.data.data);
-      setRecentQueries(qRes.data.data);
+      setAssignedQueries(qRes.data.data);
     }).catch(console.error).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   const STATS = [
-    { label: "Total Queries",    value: overview.total,        icon: "📋", color: "#4f8ef7", bg: "#eef3ff" },
-    { label: "Open",             value: overview.open,         icon: "🔴", color: "#e74c3c", bg: "#fef0ef" },
-    { label: "In Progress",      value: overview.inProgress,   icon: "⏳", color: "#f5a623", bg: "#fff8ec" },
-    { label: "Resolved",         value: overview.resolved,     icon: "✅", color: "#27ae60", bg: "#edfaf3" },
-    { label: "Total Students",   value: overview.totalStudents, icon: "👥", color: "#7c5cbf", bg: "#f2eeff" },
+    { label: "Assigned Queries", value: overview.total || 0,        icon: "📋", color: "#4f8ef7", bg: "#eef3ff" },
+    { label: "Open",             value: overview.open || 0,         icon: "🔴", color: "#e74c3c", bg: "#fef0ef" },
+    { label: "In Progress",      value: overview.inProgress || 0,   icon: "⏳", color: "#f5a623", bg: "#fff8ec" },
+    { label: "Resolved",         value: overview.resolved || 0,     icon: "✅", color: "#27ae60", bg: "#edfaf3" },
   ];
 
   const STATUS_COLOR = { open: "#e74c3c", "in-progress": "#f5a623", resolved: "#27ae60", closed: "#888" };
   const PRIORITY_DOT = { high: "#e74c3c", medium: "#f5a623", low: "#27ae60" };
 
-  const loadData = () => {
-    setLoading(true);
-    Promise.all([
-      analyticsAPI.getOverview(),
-      queryAPI.getAll({ limit: 8, status: "open" }),
-    ]).then(([oRes, qRes]) => {
-      setOverview(oRes.data.data);
-      setRecentQueries(qRes.data.data);
-    }).catch(console.error).finally(() => setLoading(false));
-  };
-
   return (
     <Layout>
       {/* Page Header */}
       <div style={{ marginBottom: 36 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: "#1a1a2e", marginBottom: 8 }}>Admin Dashboard</h1>
-        <p style={{ color: "#888", fontSize: 15, lineHeight: 1.6 }}>Overview of all queries and system activity</p>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: "#1a1a2e", marginBottom: 8 }}>Faculty Dashboard</h1>
+        <p style={{ color: "#888", fontSize: 15, lineHeight: 1.6 }}>Overview of queries assigned to you and your department</p>
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 36 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 36 }}>
         {STATS.map(s => (
           <div key={s.label} style={{ 
             background: "#fff", borderRadius: 16, padding: "24px", 
@@ -77,7 +70,7 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Recent Open Queries Section */}
+      {/* Assigned Queries Section */}
       <div style={{ 
         background: "#fff", borderRadius: 16, padding: "28px", 
         boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
@@ -85,14 +78,14 @@ export default function AdminDashboard() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#1a1a2e", marginBottom: 4 }}>Open Queries — Needs Attention</h2>
-            <p style={{ fontSize: 13, color: "#999" }}>Recent queries that require assignment or response</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#1a1a2e", marginBottom: 4 }}>Queries Needing Your Attention</h2>
+            <p style={{ fontSize: 13, color: "#999" }}>Review and respond to student queries</p>
           </div>
           <div style={{ 
-            background: "#fef0ef", padding: "8px 16px", borderRadius: 12, 
-            fontSize: 13, fontWeight: 600, color: "#e74c3c" 
+            background: "#f5f7fa", padding: "8px 16px", borderRadius: 12, 
+            fontSize: 13, fontWeight: 600, color: "#666" 
           }}>
-            {recentQueries.length} open
+            {assignedQueries.length} {assignedQueries.length === 1 ? 'query' : 'queries'}
           </div>
         </div>
 
@@ -101,15 +94,15 @@ export default function AdminDashboard() {
             <div style={{ fontSize: 18, marginBottom: 8 }}>⏳</div>
             <div>Loading queries...</div>
           </div>
-        ) : recentQueries.length === 0 ? (
+        ) : assignedQueries.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "#1a1a2e", marginBottom: 8 }}>All caught up!</div>
-            <div style={{ color: "#999", fontSize: 14 }}>No open queries at the moment.</div>
+            <div style={{ color: "#999", fontSize: 14 }}>No queries currently assigned to you.</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {recentQueries.map((q) => (
+            {assignedQueries.map((q) => (
               <div key={q._id} onClick={() => setSelected(q)} style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "18px 20px", borderRadius: 12, cursor: "pointer",
@@ -153,10 +146,13 @@ export default function AdminDashboard() {
                     {new Date(q.createdAt).toLocaleDateString("en-IN", { day:"numeric", month:"short" })}
                   </span>
                   <span style={{ 
-                    background: "#fef0ef", color: "#e74c3c", borderRadius: 8, 
+                    background: STATUS_COLOR[q.status] ? STATUS_COLOR[q.status]+"15" : "#eee", 
+                    color: STATUS_COLOR[q.status], borderRadius: 8, 
                     padding: "6px 12px", fontSize: 11, fontWeight: 700, 
-                    whiteSpace: "nowrap" 
-                  }}>Open</span>
+                    textTransform: "capitalize", whiteSpace: "nowrap" 
+                  }}>
+                    {q.status.replace("-", " ")}
+                  </span>
                 </div>
               </div>
             ))}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Layout from "../../components/layout/Layout";
 import QueryDetailModal from "../../components/dashboard/QueryDetailModal";
 import { queryAPI } from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 
 const STATUS_CONFIG = {
   open:          { label: "Open",        color: "#e74c3c", bg: "#fef0ef" },
@@ -20,10 +21,13 @@ export default function ManageQueries() {
   const [queries, setQueries]   = useState([]);
   const [filter, setFilter]     = useState("all");
   const [category, setCategory] = useState("all");
+  const [assignment, setAssignment] = useState("all"); // For faculty: 'all', 'me', 'unassigned'
   const [loading, setLoading]   = useState(true);
   const [total, setTotal]       = useState(0);
   const [page, setPage]         = useState(1);
   const [selected, setSelected] = useState(null);
+  
+  const { user } = useAuth(); // Import useAuth from context and use it
 
   const load = async () => {
     setLoading(true);
@@ -31,6 +35,8 @@ export default function ManageQueries() {
       const params = { page, limit: 15 };
       if (filter   !== "all") params.status   = filter;
       if (category !== "all") params.category = category;
+      if (user?.role === "faculty" && assignment !== "all") params.assigned = assignment;
+      
       const r = await queryAPI.getAll(params);
       setQueries(r.data.data);
       setTotal(r.data.pagination.total);
@@ -38,8 +44,8 @@ export default function ManageQueries() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { setPage(1); }, [filter, category]);
-  useEffect(() => { load(); }, [filter, category, page]);
+  useEffect(() => { setPage(1); }, [filter, category, assignment]);
+  useEffect(() => { load(); }, [filter, category, assignment, page]);
 
   return (
     <Layout>
@@ -65,8 +71,25 @@ export default function ManageQueries() {
             </button>
           ))}
         </div>
+        
+        {user?.role === "faculty" && (
+          <div style={{ display: "flex", gap: 6, marginLeft: 10, paddingLeft: 10, borderLeft: "1px solid #ddd" }}>
+            {[{v: "all", l: "All Queries"}, {v: "me", l: "Assigned To Me"}, {v: "unassigned", l: "Unassigned"}].map(a => (
+              <button key={a.v} onClick={() => setAssignment(a.v)} style={{
+                padding: "7px 14px", borderRadius: 8, border: "1.5px solid",
+                borderColor: assignment === a.v ? "#4f8ef7" : "#e0e0e0",
+                background: assignment === a.v ? "#eef3ff" : "#fff",
+                color: assignment === a.v ? "#4f8ef7" : "#888",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}>
+                {a.l}
+              </button>
+            ))}
+          </div>
+        )}
+
         <select value={category} onChange={e => setCategory(e.target.value)} style={{
-          padding: "8px 14px", border: "1.5px solid #e0e0e0", borderRadius: 8, fontSize: 13, outline: "none",
+          padding: "8px 14px", border: "1.5px solid #e0e0e0", borderRadius: 8, fontSize: 13, outline: "none", marginLeft: user?.role === "faculty" ? 10 : 0
         }}>
           <option value="all">All Categories</option>
           {["Scholarship","Attendance","Exam","Internship","Mentoring","Administrative","Other"].map(c => <option key={c}>{c}</option>)}

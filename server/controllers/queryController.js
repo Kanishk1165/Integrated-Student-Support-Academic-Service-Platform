@@ -26,7 +26,25 @@ exports.getQueries = async (req, res, next) => {
 
     let q = db.from("queries").select("*", { count: "exact" }).order("created_at", { ascending: false });
 
-    if (req.user.role === "student") q = q.eq("raised_by", req.user.id);
+    // Role-based filtering
+    if (req.user.role === "student") {
+      q = q.eq("raised_by", req.user.id);
+    } else if (req.user.role === "faculty") {
+      // Faculty see queries assigned to them OR queries without a department (assuming they can pick them up)
+      // or queries matching their department if we had a robust department matching.
+      // For now, let's show queries assigned specifically to them, or open queries that need assignment.
+      // To simplify, let's filter just by assignment for faculty, but allow them to see all to pick them up if needed.
+      // Usually, a faculty dashboard shows queries assigned to them, or if no filter, maybe all open.
+      // Actually, let's just use the assigned_to parameter if provided in query, otherwise show all.
+      if (req.query.assigned) {
+        if (req.query.assigned === 'me') {
+          q = q.eq("assigned_to", req.user.id);
+        } else if (req.query.assigned === 'unassigned') {
+          q = q.is("assigned_to", null);
+        }
+      }
+    }
+
     if (status) q = q.eq("status", status);
     if (category) q = q.eq("category", category);
     if (priority) q = q.eq("priority", priority);

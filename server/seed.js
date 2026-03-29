@@ -1,7 +1,21 @@
 /**
- * Seed script (Supabase)
- * Run: node seed.js
+ * Seed script (Supabase) - DEPRECATED
+ * 
+ * This script has been replaced with seed-improved.js which uses the Supabase Admin API
+ * for better reliability and bypasses email confirmation issues.
+ * 
+ * Run: node seed-improved.js
  */
+
+console.log("⚠️  This seed script is deprecated!");
+console.log("Please use: node seed-improved.js");
+console.log("\nThe improved version:");
+console.log("- Uses Supabase Admin API");
+console.log("- Includes faculty user");
+console.log("- Better error handling");
+console.log("- Auto-confirms emails");
+process.exit(0);
+
 const dotenv = require("dotenv");
 dotenv.config();
 

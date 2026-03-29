@@ -46,6 +46,12 @@ export default function ManageUsers() {
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Manage Users</h1>
           <p style={{ color: "#aaa", fontSize: 14, marginTop: 2 }}>{total} users registered</p>
         </div>
+        <button onClick={() => alert("To add a faculty or admin, register them via the standard /register route and their role will be determined by their email or you can modify them in the database.")} style={{
+          padding: "10px 16px", borderRadius: 8, background: "#1a1a2e", color: "#fff",
+          fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span>+</span> Add Faculty/Admin
+        </button>
       </div>
 
       {/* Filters */}
