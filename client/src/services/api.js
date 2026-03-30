@@ -63,6 +63,7 @@ export const userAPI = {
   updateProfile:(data) => api.patch("/users/profile", data),
   getAll:       (params) => api.get("/users", { params }),
   toggleActive: (id)   => api.patch(`/users/${id}/toggle-active`),
+  create:       (data) => api.post("/users/create", data),
 };
 
 // ── Faculty ───────────────────────────────────────────────────────────────────

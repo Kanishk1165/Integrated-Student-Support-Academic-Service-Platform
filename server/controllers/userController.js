@@ -16,22 +16,27 @@ exports.createUser = async (req, res, next) => {
     if (!db) return;
 
     // Validate request body
-    const { name, email, role, rollNumber, department, year, phone } = req.body;
+    const { name, email, password, role, rollNumber, department, year, phone } = req.body;
     
     // Validate required fields
-    if (!name || !email || !role) {
-      return res.status(400).json({ success: false, message: "Name, email, and role are required." });
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ success: false, message: "Name, email, password, and role are required." });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: "Password must be at least 6 characters." });
     }
 
     // Create the user in Supabase Auth
     const { data: authData, error: authError } = await db.auth.admin.createUser({
       email: email,
-      password: "tempPassword123", // Temporary password, user will need to reset
+      password: password,
       email_confirm: true
     });
 
     if (authError) {
-      return res.status(400).json({ success: false, message: "Failed to create user in auth system." });
+      console.error("Auth error:", authError);
+      return res.status(400).json({ success: false, message: authError.message || "Failed to create user in auth system." });
     }
 
     // Create the profile
@@ -44,7 +49,9 @@ exports.createUser = async (req, res, next) => {
       year: year || null,
       phone: phone || null,
       is_active: true,
-      approval_status: role === 'faculty' ? 'approved' : 'approved', // Auto-approve non-faculty users
+      approval_status: 'approved', // Auto-approve users created by admin
+      approved_by: req.user.id,
+      approved_at: new Date().toISOString(),
       supabase_id: authData.user.id
     };
 
@@ -55,7 +62,7 @@ exports.createUser = async (req, res, next) => {
     res.status(201).json({ 
       success: true, 
       data: normalizeProfile(data),
-      message: "User created successfully. Please ask user to reset their password."
+      message: "User created successfully."
     });
   } catch (err) {
     next(err);
