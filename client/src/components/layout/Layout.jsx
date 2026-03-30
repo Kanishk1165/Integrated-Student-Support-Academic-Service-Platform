@@ -11,7 +11,6 @@ const ADMIN_NAV = [
   { path: "/admin/dashboard",  icon: "🏠", label: "Dashboard" },
   { path: "/admin/queries",    icon: "📋", label: "Queries" },
   { path: "/admin/users",      icon: "👥", label: "Users" },
-  { path: "/admin/faculty-approvals", icon: "✓", label: "Faculty Approvals" },
   { path: "/admin/analytics",  icon: "📊", label: "Analytics" },
 ];
 const FACULTY_NAV = [

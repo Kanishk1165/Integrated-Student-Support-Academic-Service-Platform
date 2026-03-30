@@ -10,7 +10,6 @@ import ManageUsers from "./pages/admin/ManageUsers";
 import Analytics from "./pages/admin/Analytics";
 import MyQueries from "./pages/student/MyQueries";
 import Profile from "./pages/student/Profile";
-import FacultyApprovals from "./pages/admin/FacultyApprovals";
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
@@ -48,7 +47,6 @@ export default function App() {
           <Route path="/admin/queries"    element={<ProtectedRoute allowedRoles={["admin"]}><ManageQueries /></ProtectedRoute>} />
           <Route path="/admin/users"      element={<ProtectedRoute allowedRoles={["admin"]}><ManageUsers /></ProtectedRoute>} />
           <Route path="/admin/analytics"  element={<ProtectedRoute allowedRoles={["admin"]}><Analytics /></ProtectedRoute>} />
-          <Route path="/admin/faculty-approvals" element={<ProtectedRoute allowedRoles={["admin"]}><FacultyApprovals /></ProtectedRoute>} />
 
           {/* Faculty routes */}
           <Route path="/faculty/dashboard" element={<ProtectedRoute allowedRoles={["faculty"]}><FacultyDashboard /></ProtectedRoute>} />
