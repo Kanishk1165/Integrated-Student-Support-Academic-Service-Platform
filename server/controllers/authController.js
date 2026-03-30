@@ -34,6 +34,19 @@ const ensureProfileFromSupabase = async (supabaseUser, fallback = {}) => {
     throw new Error("Supabase user is missing id/email.");
   }
 
+  // First, check if profile already exists
+  const { data: existingProfile, error: fetchError } = await db
+    .from("profiles")
+    .select("*")
+    .eq("supabase_id", supabaseId)
+    .single();
+
+  // If profile exists, return it without modifying approval-related fields
+  if (existingProfile && !fetchError) {
+    return normalizeProfile(existingProfile);
+  }
+
+  // Profile doesn't exist, create new one
   const metadata = supabaseUser?.user_metadata || {};
   const role = pickRole(fallback.role || metadata.role, email);
 
@@ -56,7 +69,7 @@ const ensureProfileFromSupabase = async (supabaseUser, fallback = {}) => {
 
   const { data, error } = await db
     .from("profiles")
-    .upsert(profilePayload, { onConflict: "supabase_id" })
+    .insert(profilePayload)
     .select("*")
     .single();
 

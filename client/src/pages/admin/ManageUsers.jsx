@@ -8,12 +8,6 @@ const ROLE_BADGE = {
   faculty: { color: "#27ae60", bg: "#edfaf3" },
 };
 
-const APPROVAL_STATUS_BADGE = {
-  approved: { color: "#27ae60", bg: "#edfaf3", text: "Approved" },
-  pending: { color: "#f39c12", bg: "#fff3cd", text: "Pending" },
-  rejected: { color: "#e74c3c", bg: "#fef0ef", text: "Rejected" }
-};
-
 export default function ManageUsers() {
   const [users, setUsers]     = useState([]);
   const [role, setRole]       = useState("all");

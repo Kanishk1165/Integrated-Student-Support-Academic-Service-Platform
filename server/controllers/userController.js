@@ -9,6 +9,59 @@ const requireDb = (res) => {
   return db;
 };
 
+// Add a new function to create users by admin
+exports.createUser = async (req, res, next) => {
+  try {
+    const db = requireDb(res);
+    if (!db) return;
+
+    // Validate request body
+    const { name, email, role, rollNumber, department, year, phone } = req.body;
+    
+    // Validate required fields
+    if (!name || !email || !role) {
+      return res.status(400).json({ success: false, message: "Name, email, and role are required." });
+    }
+
+    // Create the user in Supabase Auth
+    const { data: authData, error: authError } = await db.auth.admin.createUser({
+      email: email,
+      password: "tempPassword123", // Temporary password, user will need to reset
+      email_confirm: true
+    });
+
+    if (authError) {
+      return res.status(400).json({ success: false, message: "Failed to create user in auth system." });
+    }
+
+    // Create the profile
+    const profilePayload = {
+      email: email,
+      name: name,
+      role: role,
+      roll_number: rollNumber || null,
+      department: department || null,
+      year: year || null,
+      phone: phone || null,
+      is_active: true,
+      approval_status: role === 'faculty' ? 'approved' : 'approved', // Auto-approve non-faculty users
+      supabase_id: authData.user.id
+    };
+
+    const { data, error } = await db.from("profiles").insert(profilePayload).select("*").single();
+    
+    if (error) throw error;
+
+    res.status(201).json({ 
+      success: true, 
+      data: normalizeProfile(data),
+      message: "User created successfully. Please ask user to reset their password."
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // GET /api/users/profile
 exports.getProfile = async (req, res) => {
   res.json({ success: true, data: req.user });
