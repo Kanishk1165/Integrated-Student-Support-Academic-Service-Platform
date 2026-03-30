@@ -8,6 +8,12 @@ const ROLE_BADGE = {
   faculty: { color: "#27ae60", bg: "#edfaf3" },
 };
 
+const APPROVAL_STATUS_BADGE = {
+  approved: { color: "#27ae60", bg: "#edfaf3", text: "Approved" },
+  pending: { color: "#f39c12", bg: "#fff3cd", text: "Pending" },
+  rejected: { color: "#e74c3c", bg: "#fef0ef", text: "Rejected" }
+};
+
 export default function ManageUsers() {
   const [users, setUsers]     = useState([]);
   const [role, setRole]       = useState("all");
@@ -95,14 +101,27 @@ export default function ManageUsers() {
               <span style={{ fontSize: 12, color: "#888" }}>{u.rollNumber || u.department || "—"}</span>
               <span style={{ fontSize: 12, color: "#aaa" }}>{new Date(u.createdAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"2-digit" })}</span>
               <span style={{ background: rb.bg, color: rb.color, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, textTransform: "capitalize" }}>{u.role}</span>
-              <button onClick={() => handleToggle(u._id)} style={{
-                padding: "5px 12px", borderRadius: 7, border: "none",
-                background: u.isActive ? "#edfaf3" : "#fef0ef",
-                color: u.isActive ? "#27ae60" : "#e74c3c",
-                fontSize: 11, fontWeight: 700, cursor: "pointer",
-              }}>
-                {u.isActive ? "Active" : "Inactive"}
-              </button>
+              {u.role === 'faculty' ? (
+                <span style={{ 
+                  background: APPROVAL_STATUS_BADGE[u.approvalStatus]?.bg || "#edfaf3", 
+                  color: APPROVAL_STATUS_BADGE[u.approvalStatus]?.color || "#27ae60", 
+                  borderRadius: 20, 
+                  padding: "3px 10px", 
+                  fontSize: 11, 
+                  fontWeight: 700 
+                }}>
+                  {APPROVAL_STATUS_BADGE[u.approvalStatus]?.text || u.approvalStatus}
+                </span>
+              ) : (
+                <button onClick={() => handleToggle(u._id)} style={{
+                  padding: "5px 12px", borderRadius: 7, border: "none",
+                  background: u.isActive ? "#edfaf3" : "#fef0ef",
+                  color: u.isActive ? "#27ae60" : "#e74c3c",
+                  fontSize: 11, fontWeight: 700, cursor: "pointer",
+                }}>
+                  {u.isActive ? "Active" : "Inactive"}
+                </button>
+              )}
             </div>
           );
         })}

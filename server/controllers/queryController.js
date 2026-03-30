@@ -30,17 +30,36 @@ exports.getQueries = async (req, res, next) => {
     if (req.user.role === "student") {
       q = q.eq("raised_by", req.user.id);
     } else if (req.user.role === "faculty") {
-      // Faculty see queries assigned to them OR queries without a department (assuming they can pick them up)
-      // or queries matching their department if we had a robust department matching.
-      // For now, let's show queries assigned specifically to them, or open queries that need assignment.
-      // To simplify, let's filter just by assignment for faculty, but allow them to see all to pick them up if needed.
-      // Usually, a faculty dashboard shows queries assigned to them, or if no filter, maybe all open.
-      // Actually, let's just use the assigned_to parameter if provided in query, otherwise show all.
-      if (req.query.assigned) {
-        if (req.query.assigned === 'me') {
-          q = q.eq("assigned_to", req.user.id);
-        } else if (req.query.assigned === 'unassigned') {
-          q = q.is("assigned_to", null);
+      // Faculty see queries assigned to them via the new junction table
+      if (req.query.assigned === 'me') {
+        // Get query IDs where faculty is assigned
+        const { data: assignments } = await db
+          .from("query_faculty_assignments")
+          .select("query_id")
+          .eq("faculty_id", req.user.id);
+        
+        const queryIds = (assignments || []).map(a => a.query_id);
+        
+        if (queryIds.length > 0) {
+          q = q.in("id", queryIds);
+        } else {
+          // No queries assigned, return empty
+          return res.json({
+            success: true,
+            data: [],
+            pagination: { total: 0, page: pageNum, pages: 0 },
+          });
+        }
+      } else if (req.query.assigned === 'unassigned') {
+        // Get queries with no faculty assignments
+        const { data: assignedQueries } = await db
+          .from("query_faculty_assignments")
+          .select("query_id");
+        
+        const assignedQueryIds = (assignedQueries || []).map(a => a.query_id);
+        
+        if (assignedQueryIds.length > 0) {
+          q = q.not("id", "in", `(${assignedQueryIds.join(",")})`);
         }
       }
     }
@@ -92,9 +111,32 @@ exports.createQuery = async (req, res, next) => {
     const db = requireDb(res);
     if (!db) return;
 
-    const { title, description, category, priority, department } = req.body;
+    const { title, description, category, priority, department, assignedFaculty } = req.body;
     if (!title || !description || !category) {
       return res.status(400).json({ success: false, message: "Title, description, and category are required." });
+    }
+
+    // Validate assignedFaculty is required and is an array
+    if (!assignedFaculty || !Array.isArray(assignedFaculty) || assignedFaculty.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one faculty member must be assigned." });
+    }
+
+    // Validate all faculty IDs are valid approved faculty members
+    const { data: facultyMembers, error: facultyError } = await db
+      .from("profiles")
+      .select("id")
+      .eq("role", "faculty")
+      .eq("approval_status", "approved")
+      .eq("is_active", true)
+      .in("id", assignedFaculty);
+
+    if (facultyError) throw facultyError;
+
+    if (!facultyMembers || facultyMembers.length !== assignedFaculty.length) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "One or more selected faculty members are not valid or not approved." 
+      });
     }
 
     const payload = {
@@ -105,10 +147,23 @@ exports.createQuery = async (req, res, next) => {
       priority: priority || "medium",
       department_id: department || null,
       raised_by: req.user.id,
+      assigned_to: assignedFaculty[0] || null, // Keep first faculty in old field for backward compatibility
     };
 
     const { data, error } = await db.from("queries").insert(payload).select("*").single();
     if (error) throw error;
+
+    // Insert faculty assignments into query_faculty_assignments table
+    const assignments = assignedFaculty.map(facultyId => ({
+      query_id: data.id,
+      faculty_id: facultyId
+    }));
+
+    const { error: assignmentError } = await db
+      .from("query_faculty_assignments")
+      .insert(assignments);
+
+    if (assignmentError) throw assignmentError;
 
     const [query] = await enrichQueries(db, [data], { includeResponses: true });
 

@@ -13,7 +13,7 @@ export default function FacultyDashboard() {
     setLoading(true);
     Promise.all([
       analyticsAPI.getOverview(), // We will update backend so this works per-faculty
-      queryAPI.getAll({ limit: 10, status: "open", assigned: "me" }), // Only assigned open queries
+      queryAPI.getAll({ limit: 10, assigned: "me" }), // Get queries assigned to this faculty
     ]).then(([oRes, qRes]) => {
       setOverview(oRes.data.data);
       setAssignedQueries(qRes.data.data);

@@ -13,6 +13,11 @@ create table if not exists public.profiles (
   phone text,
   avatar text default '',
   is_active boolean not null default true,
+  approval_status text not null default 'approved' check (approval_status in ('pending', 'approved', 'rejected')),
+  approved_by uuid references public.profiles(id) on delete set null,
+  approved_at timestamptz,
+  rejection_reason text,
+  rejection_count integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -54,7 +59,19 @@ create table if not exists public.query_responses (
   created_at timestamptz not null default now()
 );
 
+-- New table for multiple faculty assignments to queries
+create table if not exists public.query_faculty_assignments (
+  id uuid primary key default gen_random_uuid(),
+  query_id uuid not null references public.queries(id) on delete cascade,
+  faculty_id uuid not null references public.profiles(id) on delete cascade,
+  assigned_at timestamptz not null default now(),
+  unique(query_id, faculty_id)
+);
+
 create index if not exists idx_profiles_supabase_id on public.profiles(supabase_id);
 create index if not exists idx_queries_raised_by on public.queries(raised_by);
 create index if not exists idx_queries_status on public.queries(status);
 create index if not exists idx_query_responses_query_id on public.query_responses(query_id);
+create index if not exists idx_query_faculty_assignments_query on public.query_faculty_assignments(query_id);
+create index if not exists idx_query_faculty_assignments_faculty on public.query_faculty_assignments(faculty_id);
+create index if not exists idx_profiles_approval_status on public.profiles(approval_status) where role = 'faculty';

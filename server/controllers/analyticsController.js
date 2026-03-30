@@ -12,7 +12,25 @@ const requireDb = (res) => {
 const countByStatus = async (db, status, userId) => {
   let q = db.from("queries").select("id", { count: "exact", head: true });
   if (status) q = q.eq("status", status);
-  if (userId) q = q.eq("assigned_to", userId);
+  
+  // For faculty, we need to check the query_faculty_assignments table
+  if (userId) {
+    // Get query IDs assigned to this faculty member
+    const { data: assignments } = await db
+      .from("query_faculty_assignments")
+      .select("query_id")
+      .eq("faculty_id", userId);
+    
+    const queryIds = (assignments || []).map(a => a.query_id);
+    if (queryIds.length > 0) {
+      // Filter queries by the found query IDs
+      q = q.in("id", queryIds);
+    } else {
+      // No queries assigned to this faculty
+      return 0;
+    }
+  }
+  
   const { count, error } = await q;
   if (error) throw error;
   return count || 0;

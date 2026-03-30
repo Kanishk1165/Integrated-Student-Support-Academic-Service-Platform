@@ -35,17 +35,23 @@ const ensureProfileFromSupabase = async (supabaseUser, fallback = {}) => {
   }
 
   const metadata = supabaseUser?.user_metadata || {};
+  const role = pickRole(fallback.role || metadata.role, email);
 
+  // For faculty registrations, set approval_status to 'pending' and is_active to false
+  // For students and admins, auto-approve
+  const isFaculty = role === 'faculty';
+  
   const profilePayload = {
     supabase_id: supabaseId,
     email,
     name: fallback.name || metadata.name || getDefaultNameFromEmail(email),
-    role: pickRole(fallback.role || metadata.role, email),
+    role: role,
     roll_number: fallback.rollNumber || metadata.rollNumber || null,
     department: fallback.department || metadata.department || null,
     year: fallback.year || metadata.year || null,
     phone: fallback.phone || metadata.phone || null,
-    is_active: true,
+    is_active: !isFaculty, // Faculty starts inactive until approved
+    approval_status: isFaculty ? 'pending' : 'approved',
   };
 
   const { data, error } = await db
@@ -73,6 +79,33 @@ exports.register = async (req, res, next) => {
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
     const { name, email, password, role, rollNumber, department, year, phone } = req.body;
+
+    // Validate faculty must have department
+    if (role === 'faculty' && !department) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Department is required for faculty registration." 
+      });
+    }
+
+    // Check if rejected faculty is trying to re-register (max 3 attempts)
+    if (role === 'faculty') {
+      const db = getDbClient();
+      const { data: existingProfile } = await db
+        .from('profiles')
+        .select('rejection_count, approval_status')
+        .eq('email', email)
+        .single();
+
+      if (existingProfile && existingProfile.approval_status === 'rejected') {
+        if (existingProfile.rejection_count >= 3) {
+          return res.status(403).json({
+            success: false,
+            message: "Maximum registration attempts (3) exceeded. Please contact administration."
+          });
+        }
+      }
+    }
 
     const signup = await signUpWithPassword({
       email,
@@ -107,6 +140,17 @@ exports.register = async (req, res, next) => {
       supabaseId: supabaseUser?.id,
     });
 
+    // If faculty, notify admins and return pending status message
+    if (role === 'faculty') {
+      // TODO: Send email notification to all admins
+      return res.status(201).json({
+        success: true,
+        message: "Faculty registration submitted. Awaiting admin approval.",
+        user: profile,
+        isPending: true
+      });
+    }
+
     return sendSession(res, profile, login.data?.access_token, 201);
   } catch (err) {
     next(err);
@@ -130,6 +174,23 @@ exports.login = async (req, res, next) => {
     const profile = await ensureProfileFromSupabase(supabaseUser, { email, supabaseId: supabaseUser?.id });
 
     if (!profile?.isActive) {
+      // Check if it's a pending faculty account
+      if (profile.role === 'faculty' && profile.approvalStatus === 'pending') {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Account pending approval", 
+          isPending: true 
+        });
+      }
+      // Check if it's a rejected faculty account
+      if (profile.role === 'faculty' && profile.approvalStatus === 'rejected') {
+        return res.status(403).json({ 
+          success: false, 
+          message: `Account registration rejected. Reason: ${profile.rejectionReason || 'Not specified'}`, 
+          isRejected: true,
+          rejectionReason: profile.rejectionReason
+        });
+      }
       return res.status(403).json({ success: false, message: "Account deactivated. Contact admin." });
     }
 
@@ -158,6 +219,14 @@ exports.syncSupabaseSession = async (req, res, next) => {
     const profile = await ensureProfileFromSupabase(lookup.data);
 
     if (!profile?.isActive) {
+      // Check if it's a pending faculty account
+      if (profile.role === 'faculty' && profile.approvalStatus === 'pending') {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Account pending approval", 
+          isPending: true 
+        });
+      }
       return res.status(403).json({ success: false, message: "Account deactivated. Contact admin." });
     }
 

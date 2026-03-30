@@ -47,6 +47,13 @@ export function AuthProvider({ children }) {
 
   const register = async (formData) => {
     const res = await authAPI.register(formData);
+    
+    // If faculty registration is pending, don't set token or user
+    if (res.data.isPending) {
+      return { isPending: true, user: res.data.user };
+    }
+    
+    // Student registration - set token and user
     localStorage.setItem("token", res.data.token);
     setUser(res.data.user);
     return res.data.user;

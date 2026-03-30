@@ -7,18 +7,30 @@ export default function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+  const [isPending, setIsPending] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setIsPending(false);
     setLoading(true);
     try {
       const user = await login(form.email, form.password);
       const roleRoutes = { student: "/student/dashboard", faculty: "/faculty/dashboard", admin: "/admin/dashboard" };
       navigate(roleRoutes[user.role] || "/admin/dashboard");
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Login failed. Check your credentials.");
+      const errorData = err.response?.data;
+      
+      // Check if it's a pending faculty account
+      if (errorData?.isPending) {
+        setIsPending(true);
+        setError("Account pending approval");
+      } else if (errorData?.isRejected) {
+        setError(`Account registration rejected. ${errorData.rejectionReason ? `Reason: ${errorData.rejectionReason}` : ''}`);
+      } else {
+        setError(errorData?.message || err.message || "Login failed. Check your credentials.");
+      }
     } finally {
       setLoading(false);
     }
@@ -43,8 +55,21 @@ export default function Login() {
           boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
         }}>
           {error && (
-            <div style={{ background: "#fef0ef", color: "#e74c3c", padding: "12px 16px", borderRadius: 10, fontSize: 13, marginBottom: 20, border: "1px solid #fdd" }}>
-              {error}
+            <div style={{ 
+              background: isPending ? "#fff3cd" : "#fef0ef", 
+              color: isPending ? "#856404" : "#e74c3c", 
+              padding: "12px 16px", 
+              borderRadius: 10, 
+              fontSize: 13, 
+              marginBottom: 20, 
+              border: isPending ? "1px solid #ffeeba" : "1px solid #fdd" 
+            }}>
+              {isPending ? (
+                <>
+                  <strong>⏳ Account Pending Approval</strong><br />
+                  <span style={{ fontSize: 12 }}>Please wait for admin confirmation. You will receive an email once approved.</span>
+                </>
+              ) : error}
             </div>
           )}
 

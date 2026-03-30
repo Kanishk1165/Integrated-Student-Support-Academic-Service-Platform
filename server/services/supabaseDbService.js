@@ -53,6 +53,11 @@ const normalizeProfile = (row) => {
     phone: row.phone,
     avatar: row.avatar,
     isActive: row.is_active,
+    approvalStatus: row.approval_status,
+    approvedBy: row.approved_by,
+    approvedAt: row.approved_at,
+    rejectionReason: row.rejection_reason,
+    rejectionCount: row.rejection_count,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -87,7 +92,7 @@ const normalizeResponse = (row, responder) => ({
     : null,
 });
 
-const normalizeQuery = ({ row, raisedBy, assignedTo, department, responses = [] }) => ({
+const normalizeQuery = ({ row, raisedBy, assignedTo, assignedFaculties, department, responses = [] }) => ({
   _id: row.id,
   id: row.id,
   queryId: row.query_id,
@@ -105,6 +110,7 @@ const normalizeQuery = ({ row, raisedBy, assignedTo, department, responses = [] 
     ? { _id: raisedBy.id, name: raisedBy.name, email: raisedBy.email, rollNumber: raisedBy.roll_number }
     : null,
   assignedTo: assignedTo ? { _id: assignedTo.id, name: assignedTo.name, email: assignedTo.email } : null,
+  assignedFaculties: assignedFaculties || [], // Array of faculty members
   department: department ? normalizeDepartment(department) : null,
   responses,
 });
@@ -155,16 +161,48 @@ const getResponsesByQueryIds = async (supabase, queryIds = []) => {
   return grouped;
 };
 
+const getFacultyAssignmentsByQueryIds = async (supabase, queryIds = []) => {
+  const unique = [...new Set(queryIds.filter(Boolean))];
+  if (!unique.length) return new Map();
+
+  const { data, error } = await supabase
+    .from("query_faculty_assignments")
+    .select("*")
+    .in("query_id", unique);
+
+  if (error) throw error;
+
+  const facultyIds = (data || []).map((a) => a.faculty_id);
+  const faculties = await getProfilesByIds(supabase, facultyIds);
+
+  const grouped = new Map();
+  for (const row of data || []) {
+    if (!grouped.has(row.query_id)) grouped.set(row.query_id, []);
+    const faculty = faculties.get(row.faculty_id);
+    if (faculty) {
+      grouped.get(row.query_id).push({
+        _id: faculty.id,
+        name: faculty.name,
+        email: faculty.email,
+        department: faculty.department
+      });
+    }
+  }
+
+  return grouped;
+};
+
 const enrichQueries = async (supabase, rows = [], { includeResponses = false } = {}) => {
   const raisedIds = rows.map((q) => q.raised_by);
   const assignedIds = rows.map((q) => q.assigned_to);
   const departmentIds = rows.map((q) => q.department_id);
 
-  const [raisedByMap, assignedToMap, departmentMap, responsesMap] = await Promise.all([
+  const [raisedByMap, assignedToMap, departmentMap, responsesMap, facultyAssignmentsMap] = await Promise.all([
     getProfilesByIds(supabase, raisedIds),
     getProfilesByIds(supabase, assignedIds),
     getDepartmentsByIds(supabase, departmentIds),
     includeResponses ? getResponsesByQueryIds(supabase, rows.map((q) => q.id)) : Promise.resolve(new Map()),
+    getFacultyAssignmentsByQueryIds(supabase, rows.map((q) => q.id)),
   ]);
 
   return rows.map((row) =>
@@ -172,6 +210,7 @@ const enrichQueries = async (supabase, rows = [], { includeResponses = false } =
       row,
       raisedBy: raisedByMap.get(row.raised_by),
       assignedTo: assignedToMap.get(row.assigned_to),
+      assignedFaculties: facultyAssignmentsMap.get(row.id) || [],
       department: departmentMap.get(row.department_id),
       responses: responsesMap.get(row.id) || [],
     })
@@ -186,5 +225,6 @@ module.exports = {
   getProfilesByIds,
   getDepartmentsByIds,
   getResponsesByQueryIds,
+  getFacultyAssignmentsByQueryIds,
   enrichQueries,
 };

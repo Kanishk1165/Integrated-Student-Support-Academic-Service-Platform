@@ -65,6 +65,14 @@ export const userAPI = {
   toggleActive: (id)   => api.patch(`/users/${id}/toggle-active`),
 };
 
+// ── Faculty ───────────────────────────────────────────────────────────────────
+export const facultyAPI = {
+  getAll:          ()              => api.get("/users/faculty"),
+  getPending:      ()              => api.get("/users/pending-faculty"),
+  approve:         (id)            => api.patch(`/users/${id}/approve`),
+  reject:          (id, reason)    => api.patch(`/users/${id}/reject`, { rejectionReason: reason }),
+};
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 export const analyticsAPI = {
   getOverview:    () => api.get("/analytics/overview"),
